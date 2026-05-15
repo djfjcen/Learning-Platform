@@ -1,13 +1,13 @@
 package com.learningplatform.controller;
 
 import com.learningplatform.common.Result;
-import com.learningplatform.dto.CreateKnowledgePointRequest;
+import com.learningplatform.dto.KnowledgePointTreeNode;
+import com.learningplatform.entity.CodeExample;
+import com.learningplatform.entity.KnowledgeContent;
 import com.learningplatform.entity.KnowledgePoint;
 import com.learningplatform.service.CodeExampleService;
 import com.learningplatform.service.KnowledgeContentService;
 import com.learningplatform.service.KnowledgePointService;
-import jakarta.validation.Valid;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +33,12 @@ public class KnowledgePointController {
         return Result.success(list);
     }
 
+    @GetMapping("/tree")
+    public Result<List<KnowledgePointTreeNode>> tree() {
+        List<KnowledgePointTreeNode> tree = knowledgePointService.getTree();
+        return Result.success(tree);
+    }
+
     @GetMapping("/{id}")
     public Result<KnowledgePoint> getById(@PathVariable Long id) {
         KnowledgePoint point = knowledgePointService.getById(id);
@@ -40,9 +46,7 @@ public class KnowledgePointController {
     }
 
     @PostMapping
-    public Result<Void> save(@Valid @RequestBody CreateKnowledgePointRequest request) {
-        KnowledgePoint point = new KnowledgePoint();
-        BeanUtils.copyProperties(request, point);
+    public Result<Void> save(@RequestBody KnowledgePoint point) {
         knowledgePointService.save(point);
         return Result.success();
     }
