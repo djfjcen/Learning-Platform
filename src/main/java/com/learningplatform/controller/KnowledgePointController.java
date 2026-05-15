@@ -1,12 +1,13 @@
 package com.learningplatform.controller;
 
 import com.learningplatform.common.Result;
-import com.learningplatform.entity.CodeExample;
-import com.learningplatform.entity.KnowledgeContent;
+import com.learningplatform.dto.CreateKnowledgePointRequest;
 import com.learningplatform.entity.KnowledgePoint;
 import com.learningplatform.service.CodeExampleService;
 import com.learningplatform.service.KnowledgeContentService;
 import com.learningplatform.service.KnowledgePointService;
+import jakarta.validation.Valid;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -39,7 +40,9 @@ public class KnowledgePointController {
     }
 
     @PostMapping
-    public Result<Void> save(@RequestBody KnowledgePoint point) {
+    public Result<Void> save(@Valid @RequestBody CreateKnowledgePointRequest request) {
+        KnowledgePoint point = new KnowledgePoint();
+        BeanUtils.copyProperties(request, point);
         knowledgePointService.save(point);
         return Result.success();
     }
