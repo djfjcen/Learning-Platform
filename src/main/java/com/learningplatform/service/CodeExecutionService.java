@@ -18,14 +18,14 @@ public class CodeExecutionService {
     // 前端传来的语言名 -> [Piston语言名, 文件名, Piston版本]
     // gcc 8.3.0 是系统级安装，使用 -B 标志指定工具路径
     private static final Map<String, String[]> LANG_MAP = Map.of(
-        "c++",    new String[]{"c++",    "main.cpp", "8.3.0"},
-        "c",      new String[]{"c",      "main.c",   "8.3.0"},
-        "python", new String[]{"python", "main.py",  "3.7.3"},
+        "c++",    new String[]{"c++",    "main.cpp", "10.2.0"},
+        "c",      new String[]{"c",      "main.c",   "10.2.0"},
+        "python", new String[]{"python", "main.py",  "3.10.0"},
         "java",   new String[]{"java",   "Main.java", "15.0.2"}
     );
 
     public CodeRunResponse run(String language, String code, String stdin) {
-        String[] cfg = LANG_MAP.getOrDefault(language.toLowerCase(), new String[]{"c++", "main.cpp", "8.3.0"});
+        String[] cfg = LANG_MAP.getOrDefault(language.toLowerCase(), new String[]{"c++", "main.cpp", "10.2.0"});
 
         Map<String, Object> file = Map.of("name", cfg[1], "content", code);
         Map<String, Object> req = new HashMap<>();
@@ -49,18 +49,21 @@ public class CodeExecutionService {
         if (compile != null) {
             Object code0 = compile.get("code");
             String compileStderr = (String) compile.get("stderr");
-            if (code0 != null && (Integer) code0 != 0 && compileStderr != null && !compileStderr.isBlank()) {
+            if (compileStderr != null && !compileStderr.isBlank()) {
                 result.setCompileError(compileStderr);
                 result.setStdout("");
                 result.setStderr(compileStderr);
-                result.setExitCode((Integer) code0);
+                result.setExitCode(code0 != null ? ((Number) code0).intValue() : 1);
                 return result;
             }
         }
 
-        result.setStdout(run != null ? (String) run.get("stdout") : "");
-        result.setStderr(run != null ? (String) run.get("stderr") : "");
-        result.setExitCode(run != null ? (Integer) run.get("code") : -1);
+        String stdout = run != null ? (String) run.get("stdout") : "";
+        String stderr = run != null ? (String) run.get("stderr") : "";
+        Object runCode = run != null ? run.get("code") : null;
+        result.setStdout(stdout);
+        result.setStderr(stderr);
+        result.setExitCode(runCode != null ? ((Number) runCode).intValue() : -1);
         return result;
     }
 

@@ -62,21 +62,103 @@
       </el-card>
 
       <!-- ==================== 代码实现 ==================== -->
-      <el-card class="section-card" shadow="never">
+      <el-card class="section-card code-section-card" shadow="never">
         <template #header>
           <div class="section-header">
             <span class="section-number">{{ sectionIndex('code') }}</span>
-            <span class="section-title">代码实现（C++）</span>
+            <span class="section-title">代码实现</span>
           </div>
         </template>
         <div v-if="codeExamples.length > 0" class="code-examples">
           <div v-for="(example, i) in codeExamples" :key="i" class="code-block">
-            <div class="code-title">{{ example.title }}</div>
+            <div class="code-block-header">
+              <span class="code-title">{{ example.title }}</span>
+              <el-button size="small" type="primary" link @click="loadToEditor(example)">
+                加载到编辑器
+              </el-button>
+            </div>
             <p v-if="example.description" class="code-desc">{{ example.description }}</p>
             <pre class="code-pre"><code class="code-text">{{ example.code }}</code></pre>
           </div>
         </div>
         <el-empty v-else description="代码示例待补充" :image-size="60" />
+
+        <!-- 在线编辑器区域 -->
+        <div class="editor-section">
+          <el-divider content-position="left">在线编辑器</el-divider>
+          <div class="editor-toolbar">
+            <el-select v-model="editorLanguage" size="small" style="width:110px">
+              <el-option label="C++" value="c++" />
+              <el-option label="C" value="c" />
+              <el-option label="Python" value="python" />
+            </el-select>
+            <div style="flex:1" />
+            <el-button size="small" @click="handleRun" :loading="runLoading">运行</el-button>
+            <el-button size="small" type="primary" @click="handleSubmit" :loading="submitLoading">提交判题</el-button>
+          </div>
+          <div class="editor-area">
+            <CodeEditor v-model="editorCode" :language="monacoLang" />
+          </div>
+          <div v-if="stdinRequired" class="stdin-section">
+            <div class="stdin-label">标准输入 (stdin)</div>
+            <el-input
+              v-model="editorStdin"
+              type="textarea"
+              :rows="2"
+              placeholder="输入测试数据，如：3 5"
+              size="small"
+            />
+          </div>
+          <div v-if="runResult || submitResult" class="result-section">
+            <el-tabs v-model="resultTab">
+              <el-tab-pane label="运行结果" name="run" v-if="runResult">
+                <template v-if="runResult.compileError">
+                  <el-alert type="error" :closable="false" title="编译错误" style="margin-bottom:8px" />
+                  <pre class="error-pre">{{ runResult.compileError }}</pre>
+                </template>
+                <template v-else>
+                  <div class="result-row">
+                    <span class="result-label">输出：</span>
+                    <pre class="result-pre">{{ runResult.stdout || '(无输出)' }}</pre>
+                  </div>
+                  <div v-if="runResult.stderr" class="result-row">
+                    <span class="result-label" style="color:#f56c6c">错误输出：</span>
+                    <pre class="error-pre">{{ runResult.stderr }}</pre>
+                  </div>
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="判题结果" name="submit" v-if="submitResult">
+                <div class="status-banner" :class="submitResult.status?.toLowerCase()">
+                  <span class="status-icon">{{ submitResult.status === 'ACCEPTED' ? '✓' : '✗' }}</span>
+                  {{ submitStatusText }}
+                  <span class="pass-count" v-if="submitResult.passCount != null">
+                    {{ submitResult.passCount }}/{{ submitResult.totalCount }} 个测试用例通过
+                  </span>
+                </div>
+                <div v-if="submitResult.status === 'COMPILE_ERROR'">
+                  <pre class="error-pre">{{ submitResult.errorMessage }}</pre>
+                </div>
+                <div v-else-if="submitResult.testResults" class="test-results">
+                  <div
+                    v-for="(tr, i) in submitResult.testResults"
+                    :key="i"
+                    class="test-result-item"
+                    :class="{ passed: tr.passed, failed: !tr.passed }"
+                  >
+                    <el-tag :type="tr.passed ? 'success' : 'danger'" size="small">
+                      用例 {{ i + 1 }}：{{ tr.passed ? '通过' : '失败' }}
+                    </el-tag>
+                    <div v-if="!tr.passed" class="tr-detail">
+                      <span class="tr-label">输入：</span><code>{{ tr.input }}</code><br>
+                      <span class="tr-label">期望：</span><code>{{ tr.expectedOutput }}</code><br>
+                      <span class="tr-label">实际：</span><code>{{ tr.actualOutput }}</code>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+        </div>
       </el-card>
 
       <!-- ==================== 复杂度分析 ==================== -->
@@ -121,7 +203,9 @@ import {
   getKnowledgeContents,
   getCodeExamples,
 } from '@/api/modules/knowledge.js'
+import { runCode, submitCode } from '@/api/modules/code.js'
 import { useKnowledgeStore } from '@/stores/knowledge.js'
+import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
 
 const route = useRoute()
 const knowledgeStore = useKnowledgeStore()
@@ -139,8 +223,91 @@ function difficultyTagType(d) {
 const moduleNameMap = {
   set: '集合', 'linear-list': '线性表', ll: '线性表',
   tree: '树', graph: '图', search: '查找', sort: '排序',
+  '集合': '集合', '线性表': '线性表', '树': '树', '图': '图', '查找': '查找', '排序': '排序',
 }
 const moduleLabel = computed(() => moduleNameMap[route.params.module] || route.params.module || '')
+
+const DEFAULT_TEMPLATES = {
+  'c++': '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}',
+  'c': '#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}',
+  'python': '# Python code\n'
+}
+
+const editorLanguage = ref('c++')
+const editorCode = ref(DEFAULT_TEMPLATES['c++'])
+const editorStdin = ref('')
+const runLoading = ref(false)
+const submitLoading = ref(false)
+const runResult = ref(null)
+const submitResult = ref(null)
+const resultTab = ref('run')
+const stdinRequired = ref(true)
+
+const monacoLang = computed(() =>
+  ({ 'c++': 'cpp', 'c': 'c', 'python': 'python' }[editorLanguage.value] || 'cpp')
+)
+
+const submitStatusText = computed(() => {
+  if (!submitResult.value) return ''
+  return { ACCEPTED: '通过', WRONG_ANSWER: '答案错误', COMPILE_ERROR: '编译错误', RUNTIME_ERROR: '运行错误' }[submitResult.value.status] || submitResult.value.status
+})
+
+watch(editorLanguage, (lang) => {
+  editorCode.value = DEFAULT_TEMPLATES[lang] || ''
+  runResult.value = null
+  submitResult.value = null
+})
+
+function loadToEditor(example) {
+  editorCode.value = example.code || ''
+  if (example.language === 'Python') {
+    editorLanguage.value = 'python'
+  } else if (example.language === 'C') {
+    editorLanguage.value = 'c'
+  } else {
+    editorLanguage.value = 'c++'
+  }
+  runResult.value = null
+  submitResult.value = null
+  const el = document.querySelector('.editor-section')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function handleRun() {
+  runLoading.value = true
+  runResult.value = null
+  resultTab.value = 'run'
+  try {
+    const res = await runCode({
+      language: editorLanguage.value,
+      code: editorCode.value,
+      stdin: editorStdin.value
+    })
+    runResult.value = res
+  } catch (e) {
+    runResult.value = { compileError: '请求失败：' + (e.message || '未知错误') }
+  } finally {
+    runLoading.value = false
+  }
+}
+
+async function handleSubmit() {
+  submitLoading.value = true
+  submitResult.value = null
+  resultTab.value = 'submit'
+  try {
+    const res = await submitCode({
+      language: editorLanguage.value,
+      code: editorCode.value,
+      testCases: []
+    })
+    submitResult.value = res
+  } catch (e) {
+    submitResult.value = { status: 'RUNTIME_ERROR', errorMessage: '请求失败：' + (e.message || '未知错误'), passCount: 0, totalCount: 0, testResults: [] }
+  } finally {
+    submitLoading.value = false
+  }
+}
 
 // ================================================================
 //  从 API 返回的 contents/codes 中取各段内容
@@ -317,13 +484,19 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.code-title {
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 16px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.code-title {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
-  background: #f5f7fa;
-  border-bottom: 1px solid #e8e8e8;
 }
 
 .code-desc {
@@ -352,6 +525,113 @@ onMounted(() => {
   padding: 0;
   border: none;
 }
+
+.editor-section {
+  margin-top: 16px;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.editor-area {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 260px;
+}
+
+.stdin-section {
+  margin-top: 8px;
+}
+
+.stdin-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.result-section {
+  margin-top: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 0 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.result-row {
+  margin-bottom: 8px;
+}
+
+.result-label {
+  font-size: 12px;
+  color: #909399;
+  font-weight: 500;
+}
+
+.result-pre {
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  color: #1f2329;
+}
+
+.error-pre {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #cf1322;
+  margin: 4px 0;
+  white-space: pre-wrap;
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+  font-weight: 600;
+  font-size: 15px;
+}
+.status-banner.accepted { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+.status-banner.wrong_answer { background: #fff2f0; color: #cf1322; border: 1px solid #ffccc7; }
+.status-banner.compile_error { background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; }
+.status-banner.runtime_error { background: #fff2f0; color: #cf1322; border: 1px solid #ffccc7; }
+
+.status-icon { font-size: 18px; }
+.pass-count { font-size: 13px; font-weight: 400; color: #909399; margin-left: auto; }
+
+.test-results { margin-top: 8px; }
+.test-result-item {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  background: #fafafa;
+}
+.test-result-item.passed { border-color: #b7eb8f; background: #f6ffed; }
+.test-result-item.failed { border-color: #ffccc7; background: #fff2f0; }
+
+.tr-detail {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #4e5969;
+}
+.tr-label { color: #909399; font-weight: 500; }
 
 :deep(.el-card__header) {
   padding: 14px 20px;

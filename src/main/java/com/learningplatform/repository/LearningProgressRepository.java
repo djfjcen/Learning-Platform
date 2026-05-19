@@ -51,4 +51,7 @@ public interface LearningProgressRepository extends BaseMapper<LearningProgress>
             "ORDER BY lp.mastery_score ASC NULLS FIRST " +
             "LIMIT #{limit}")
     List<Map<String, Object>> getWeakPoints(@Param("userId") Long userId, @Param("limit") int limit);
+
+    @Select("SELECT COUNT(DISTINCT knowledge_point_id) FROM learning_progress WHERE user_id = #{userId}")
+    Long getLearnedKnowledgePoints(@Param("userId") Long userId);
 }
