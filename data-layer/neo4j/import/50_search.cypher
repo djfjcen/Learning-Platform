@@ -73,3 +73,36 @@ CREATE (p3)-[:PARENT_OF {order: 3}]->(c3);
 MATCH (p4:KnowledgePoint {neo4j_id: 'KP_SEARCH_001'}),
       (c4:KnowledgePoint {neo4j_id: 'KP_SEARCH_005'})
 CREATE (p4)-[:PARENT_OF {order: 4}]->(c4);
+
+// 查找模块内关联关系
+MATCH (a:KnowledgePoint {neo4j_id: 'KP_SEARCH_002'}),
+      (b:KnowledgePoint {neo4j_id: 'KP_SEARCH_003'})
+CREATE (a)-[:RELATED_TO {reason: '对比学习：无序或小规模用顺序查找；有序静态数据优先二分查找'}]->(b);
+
+MATCH (a2:KnowledgePoint {neo4j_id: 'KP_SEARCH_003'}),
+      (b2:KnowledgePoint {neo4j_id: 'KP_SEARCH_002'})
+CREATE (a2)-[:RELATED_TO {reason: '二分查找要求有序；顺序查找无有序前提，实现更简单'}]->(b2);
+
+MATCH (a3:KnowledgePoint {neo4j_id: 'KP_SEARCH_002'}),
+      (b3:KnowledgePoint {neo4j_id: 'KP_SEARCH_004'})
+CREATE (a3)-[:RELATED_TO {reason: '对比学习：顺序查找O(n)；哈希查找平均O(1)但需哈希函数与冲突处理'}]->(b3);
+
+MATCH (a4:KnowledgePoint {neo4j_id: 'KP_SEARCH_004'}),
+      (b4:KnowledgePoint {neo4j_id: 'KP_SEARCH_002'})
+CREATE (a4)-[:RELATED_TO {reason: '哈希查找空间换时间；顺序查找空间开销小但时间线性增长'}]->(b4);
+
+MATCH (a5:KnowledgePoint {neo4j_id: 'KP_SEARCH_003'}),
+      (b5:KnowledgePoint {neo4j_id: 'KP_SEARCH_004'})
+CREATE (a5)-[:RELATED_TO {reason: '二分依赖有序比较；哈希通过键映射定位，适用键值精确检索'}]->(b5);
+
+MATCH (a6:KnowledgePoint {neo4j_id: 'KP_SEARCH_004'}),
+      (b6:KnowledgePoint {neo4j_id: 'KP_SEARCH_005'})
+CREATE (a6)-[:RELATED_TO {reason: '哈希适合高频精确查找；树表查找支持有序遍历与范围查询'}]->(b6);
+
+MATCH (a7:KnowledgePoint {neo4j_id: 'KP_SEARCH_005'}),
+      (b7:KnowledgePoint {neo4j_id: 'KP_SEARCH_004'})
+CREATE (a7)-[:RELATED_TO {reason: '树表查找保持有序性；哈希查找不保证键有序'}]->(b7);
+
+MATCH (a8:KnowledgePoint {neo4j_id: 'KP_SEARCH_005'}),
+      (b8:KnowledgePoint {neo4j_id: 'KP_SEARCH_003'})
+CREATE (a8)-[:RELATED_TO {reason: 'BST/AVL查找与二分查找平均均为O(logn)量级，但树结构便于动态维护'}]->(b8);
