@@ -18,14 +18,13 @@ public class CodeExecutionService {
     // 前端传来的语言名 -> [Piston语言名, 文件名, Piston版本]
     // gcc 8.3.0 是系统级安装，使用 -B 标志指定工具路径
     private static final Map<String, String[]> LANG_MAP = Map.of(
-        "c++",    new String[]{"c++",    "main.cpp", "10.2.0"},
-        "c",      new String[]{"c",      "main.c",   "10.2.0"},
-        "python", new String[]{"python", "main.py",  "3.10.0"},
-        "java",   new String[]{"java",   "Main.java", "15.0.2"}
+        "c++",    new String[]{"c++",    "main.cpp", "8.3.0"},
+        "c",      new String[]{"c",      "main.c",   "8.3.0"},
+        "python", new String[]{"python", "main.py",  "3.7.3"}
     );
 
     public CodeRunResponse run(String language, String code, String stdin) {
-        String[] cfg = LANG_MAP.getOrDefault(language.toLowerCase(), new String[]{"c++", "main.cpp", "10.2.0"});
+        String[] cfg = LANG_MAP.getOrDefault(language.toLowerCase(), new String[]{"c++", "main.cpp", "8.3.0"});
 
         Map<String, Object> file = Map.of("name", cfg[1], "content", code);
         Map<String, Object> req = new HashMap<>();

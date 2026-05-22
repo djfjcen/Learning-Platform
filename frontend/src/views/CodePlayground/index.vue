@@ -104,14 +104,58 @@ const DEFAULT_TEMPLATES = {
   'python': '# Python code\n'
 }
 
-const language = ref('c++')
-const code = ref(DEFAULT_TEMPLATES['c++'])
-const stdin = ref('')
+const STORAGE_KEYS = {
+  language: 'code-playground:language',
+  drafts: 'code-playground:drafts:v1',
+  stdin: 'code-playground:stdin'
+}
+
+function isSupportedLanguage(lang) {
+  return Object.prototype.hasOwnProperty.call(DEFAULT_TEMPLATES, lang)
+}
+
+function safeParseDrafts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.drafts)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveDraft(lang, value) {
+  if (!isSupportedLanguage(lang)) return
+  const drafts = safeParseDrafts()
+  drafts[lang] = value
+  localStorage.setItem(STORAGE_KEYS.drafts, JSON.stringify(drafts))
+}
+
+function loadDraft(lang) {
+  if (!isSupportedLanguage(lang)) return null
+  const draft = safeParseDrafts()[lang]
+  return typeof draft === 'string' ? draft : null
+}
+
+function removeDraft(lang) {
+  if (!isSupportedLanguage(lang)) return
+  const drafts = safeParseDrafts()
+  delete drafts[lang]
+  localStorage.setItem(STORAGE_KEYS.drafts, JSON.stringify(drafts))
+}
+
+const savedLanguage = localStorage.getItem(STORAGE_KEYS.language)
+const initialLanguage = isSupportedLanguage(savedLanguage) ? savedLanguage : 'c++'
+
+const language = ref(initialLanguage)
+const code = ref(loadDraft(initialLanguage) ?? DEFAULT_TEMPLATES[initialLanguage])
+const stdin = ref(localStorage.getItem(STORAGE_KEYS.stdin) || '')
 const activeTab = ref('stdin')
 const runLoading = ref(false)
 const submitLoading = ref(false)
 const runResult = ref(null)
 const submitResult = ref(null)
+const skipNextCodeSave = ref(false)
 
 const monacoLang = computed(() =>
   ({ 'c++': 'cpp', 'c': 'c', 'python': 'python' }[language.value] || 'cpp')
@@ -127,15 +171,32 @@ const submitStatusText = computed(() => {
   }[submitResult.value.status] || submitResult.value.status
 })
 
-watch(language, (lang) => {
-  code.value = DEFAULT_TEMPLATES[lang] || ''
+watch(language, (lang, oldLang) => {
+  saveDraft(oldLang, code.value)
+  localStorage.setItem(STORAGE_KEYS.language, lang)
+  code.value = loadDraft(lang) ?? DEFAULT_TEMPLATES[lang] ?? ''
   runResult.value = null
   submitResult.value = null
 })
 
+watch(code, (value) => {
+  if (skipNextCodeSave.value) {
+    skipNextCodeSave.value = false
+    return
+  }
+  saveDraft(language.value, value)
+})
+
+watch(stdin, (value) => {
+  localStorage.setItem(STORAGE_KEYS.stdin, value)
+})
+
 function resetCode() {
+  removeDraft(language.value)
+  skipNextCodeSave.value = true
   code.value = DEFAULT_TEMPLATES[language.value] || ''
   stdin.value = ''
+  localStorage.removeItem(STORAGE_KEYS.stdin)
   runResult.value = null
   submitResult.value = null
 }
