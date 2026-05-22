@@ -20,8 +20,7 @@ public class CodeExecutionService {
     private static final Map<String, String[]> LANG_MAP = Map.of(
         "c++",    new String[]{"c++",    "main.cpp", "8.3.0"},
         "c",      new String[]{"c",      "main.c",   "8.3.0"},
-        "python", new String[]{"python", "main.py",  "3.7.3"},
-        "java",   new String[]{"java",   "Main.java", "15.0.2"}
+        "python", new String[]{"python", "main.py",  "3.7.3"}
     );
 
     public CodeRunResponse run(String language, String code, String stdin) {
@@ -49,18 +48,21 @@ public class CodeExecutionService {
         if (compile != null) {
             Object code0 = compile.get("code");
             String compileStderr = (String) compile.get("stderr");
-            if (code0 != null && (Integer) code0 != 0 && compileStderr != null && !compileStderr.isBlank()) {
+            if (compileStderr != null && !compileStderr.isBlank()) {
                 result.setCompileError(compileStderr);
                 result.setStdout("");
                 result.setStderr(compileStderr);
-                result.setExitCode((Integer) code0);
+                result.setExitCode(code0 != null ? ((Number) code0).intValue() : 1);
                 return result;
             }
         }
 
-        result.setStdout(run != null ? (String) run.get("stdout") : "");
-        result.setStderr(run != null ? (String) run.get("stderr") : "");
-        result.setExitCode(run != null ? (Integer) run.get("code") : -1);
+        String stdout = run != null ? (String) run.get("stdout") : "";
+        String stderr = run != null ? (String) run.get("stderr") : "";
+        Object runCode = run != null ? run.get("code") : null;
+        result.setStdout(stdout);
+        result.setStderr(stderr);
+        result.setExitCode(runCode != null ? ((Number) runCode).intValue() : -1);
         return result;
     }
 

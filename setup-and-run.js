@@ -20,7 +20,7 @@ const os = require('os')
 
 const ROOT = path.resolve(__dirname)
 const FRONTEND_DIR = path.join(ROOT, 'frontend')
-const BACKEND_PORT = 8080
+const BACKEND_PORT = 8088
 const FRONTEND_PORT = 5173
 
 // ─── 语言包配置（托管在 GitHub Release）────────────────────

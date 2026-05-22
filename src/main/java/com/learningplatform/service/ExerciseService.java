@@ -270,7 +270,7 @@ public class ExerciseService {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             List<TestCase> testCases = objectMapper.readValue(testCasesJson, new TypeReference<List<TestCase>>() {});
-            CodeSubmitResponse response = codeExecutionService.submit("java", code, testCases);
+            CodeSubmitResponse response = codeExecutionService.submit("c++", code, testCases);
             return "ACCEPTED".equals(response.getStatus());
         } catch (Exception e) {
             log.error("运行测试用例失败", e);

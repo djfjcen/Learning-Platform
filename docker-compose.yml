@@ -9,6 +9,14 @@ services:
       - piston_packages:/piston/packages
       - piston_jobs:/piston/jobs
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 114.114.114.114
+    environment:
+      - HTTP_PROXY=http://host.docker.internal:7890
+      - HTTPS_PROXY=http://host.docker.internal:7890
+      - http_proxy=http://host.docker.internal:7890
+      - https_proxy=http://host.docker.internal:7890
 
 volumes:
   piston_packages:

@@ -1,6 +1,6 @@
 server:
-  address: "::1"
-  port: 8080
+  address: "0.0.0.0"
+  port: 8088
   servlet:
     context-path: /api
 
@@ -10,9 +10,9 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/learning_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:13306/learning_platform?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: 123456
+    password: root123
 
   neo4j:
     uri: bolt://localhost:17687
@@ -51,3 +51,7 @@ logging:
   level:
     com.learningplatform: debug
     org.springframework: info
+
+piston:
+  url: http://localhost:2000
+  mock: false
