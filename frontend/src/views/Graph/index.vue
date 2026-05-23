@@ -59,7 +59,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Search, RefreshRight } from '@element-plus/icons-vue'
 import { getGraphData, getNodeSummary, searchNodes } from '@/api/modules/graph.js'
 import GraphCanvas from '@/components/KnowledgeGraph/GraphCanvas.vue'
@@ -71,6 +72,7 @@ const selectedNodeId = ref('')
 const nodeDetail = ref(null)
 const showDetail = ref(false)
 const canvasRef = ref(null)
+const route = useRoute()
 
 const allNodes = ref([])
 const allEdges = ref([])
@@ -118,6 +120,7 @@ async function loadData() {
     useApi.value = false
     loadMockData()
   }
+  applyRouteNode()
 }
 
 function loadMockData() {
@@ -196,6 +199,26 @@ function resetView() {
   searchedIds.value = []
   closeDetail()
 }
+
+async function applyRouteNode() {
+  const nodeId = route.query.node
+  if (!nodeId || typeof nodeId !== 'string') return
+
+  filterModule.value = ''
+  searchedIds.value = [nodeId]
+  await handleNodeClick(nodeId)
+  await nextTick()
+  canvasRef.value?.focusNode(nodeId)
+}
+
+watch(
+  () => route.query.node,
+  () => {
+    if (allNodes.value.length > 0) {
+      applyRouteNode()
+    }
+  },
+)
 
 // ============== 内置模拟数据 ==============
 const MOCK_NODES = [

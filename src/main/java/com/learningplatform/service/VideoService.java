@@ -5,8 +5,10 @@ import com.learningplatform.common.BusinessException;
 import com.learningplatform.dto.VideoResponse;
 import com.learningplatform.dto.VideoWatchRecordRequest;
 import com.learningplatform.dto.VideoWatchRecordResponse;
+import com.learningplatform.entity.KnowledgePoint;
 import com.learningplatform.entity.Video;
 import com.learningplatform.entity.VideoWatchRecord;
+import com.learningplatform.repository.KnowledgePointRepository;
 import com.learningplatform.repository.VideoRepository;
 import com.learningplatform.repository.VideoWatchRecordRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +31,9 @@ public class VideoService {
 
     @Autowired
     private VideoRepository videoRepository;
+
+    @Autowired
+    private KnowledgePointRepository knowledgePointRepository;
 
     @Autowired
     private VideoWatchRecordRepository videoWatchRecordRepository;
@@ -117,7 +123,42 @@ public class VideoService {
     private VideoResponse convertToVideoResponse(Video video) {
         VideoResponse response = new VideoResponse();
         BeanUtils.copyProperties(video, response);
+        KnowledgePoint knowledgePoint = knowledgePointRepository.selectById(video.getKnowledgePointId());
+        if (knowledgePoint != null) {
+            response.setKnowledgePointName(knowledgePoint.getName());
+            response.setKnowledgePointCode(knowledgePoint.getCode());
+            response.setNeo4jId(resolveNeo4jId(knowledgePoint));
+        }
         return response;
+    }
+
+    private String resolveNeo4jId(KnowledgePoint knowledgePoint) {
+        Map<String, String> fallbackMap = Map.ofEntries(
+                Map.entry("LINEAR_LIST", "KP_LL_001"),
+                Map.entry("LINKED_LIST", "KP_LL_001"),
+                Map.entry("STACK", "KP_LL_002"),
+                Map.entry("QUEUE", "KP_LL_004"),
+                Map.entry("TREE", "KP_TREE_001"),
+                Map.entry("BINARY_TREE", "KP_TREE_002"),
+                Map.entry("B_TREE", "KP_TREE_007"),
+                Map.entry("GRAPH", "KP_GRAPH_001"),
+                Map.entry("GRAPH_REPRESENTATION", "KP_GRAPH_002"),
+                Map.entry("SEARCH", "KP_SEARCH_001"),
+                Map.entry("SEQUENTIAL_SEARCH", "KP_SEARCH_002"),
+                Map.entry("BINARY_SEARCH", "KP_SEARCH_003"),
+                Map.entry("HASH_TABLE", "KP_SEARCH_004"),
+                Map.entry("SORT", "KP_SORT_001"),
+                Map.entry("SELECTION_SORT", "KP_SORT_003")
+        );
+
+        String mappedNeo4jId = fallbackMap.get(knowledgePoint.getCode());
+        if (mappedNeo4jId != null) {
+            return mappedNeo4jId;
+        }
+        if (knowledgePoint.getNeo4jId() != null && !knowledgePoint.getNeo4jId().isBlank()) {
+            return knowledgePoint.getNeo4jId();
+        }
+        return null;
     }
 
     private VideoWatchRecordResponse convertToWatchRecordResponse(VideoWatchRecord record) {
