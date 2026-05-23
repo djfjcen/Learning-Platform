@@ -10,7 +10,7 @@
 
 - **构建**: `mvn clean package`
 - **运行**: `mvn spring-boot:run` 或直接运行 `LearningPlatformApplication`
-- **运行测试**: `mvn test`（当前暂无测试目录）
+- **运行测试**: `mvn test`
 - **运行单个测试**: `mvn test -Dtest=ClassName`
 - **API 基础地址**: `http://localhost:8080/api`
 
@@ -30,8 +30,8 @@
 - **Neo4j**: 存储知识图谱节点和关系。通过 **`Neo4jClient`** 直接执行 Cypher 查询（见 `service/GraphService.java`），非 Spring Data Neo4j Repository 模式。
 
 ### 代码约定
-- **Controllers** 主要返回 `Result<T>`（`common/Result.java`），统一包装 `code`、`message`、`data`。**习题模块**使用 `ApiResponse<T>`（`common/ApiResponse.java`），两者并存。
-- **Entities** 继承 `BaseEntity`，自动提供 `createTime`、`updateTime`。逻辑删除由各子类自行处理（如 `Exercise` 使用 `@TableLogic` 标注 `deleted` 字段）。
+- **Controllers** 统一返回 `Result<T>`（`common/Result.java`），包装 `code`、`message`、`data`。全局异常由 `common/GlobalExceptionHandler.java` 处理，业务异常使用 `common/BusinessException.java`。
+- **Entities** 继承 `BaseEntity`，自动提供 `createTime`、`updateTime`。逻辑删除在 `BaseEntity` 中通过 `@TableLogic` 统一标注 `deleted` 字段。
 - **MyBatis Plus 自动填充**: `config/MyMetaObjectHandler` 在插入时自动设置 `createTime`，在插入/更新时自动设置 `updateTime`。
 - **Mapper 扫描**: 无全局 `@MapperScan`，每个 Mapper 接口独立标注 `@Mapper`。
 - **参数校验**: 使用 `spring-boot-starter-validation`，Controller 层配合 `@Validated` + `@Valid` 使用。
@@ -45,15 +45,28 @@
 - `entity/` — 实体类
 - `dto/` — 请求/响应数据传输对象
 - `config/` — Spring 配置类
-- `common/` — 公共类（`Result<T>`、`ApiResponse<T>`、`BusinessException`）
-- `utils/` — 工具类
+- `common/` — 公共类（`Result<T>`、`BusinessException`、`GlobalExceptionHandler`）
 
 ### 独立 Python AI 服务
 `src/python/AIchat/` 提供独立的 AI 对话后端（FastAPI + Uvicorn）：
 - 默认监听 `0.0.0.0:9000`
-- 已接入通义千问（Responses API 兼容模式）
+- 已接入通义千问 / DeepSeek（OpenAI 兼容 API）
+- 支持 AI 问答、代码分析、代码生成
 - 依赖 `ai_chat` 表存储多轮对话上下文
 - 配置方式：复制 `config/apikeys.example.json` 为 `config/apikeys.local.json` 并填写 Key
+
+### 已实现模块
+
+后端已实现 7 个 Controller：
+- **UserController** — 用户管理
+- **KnowledgePointController** — 知识点管理、树形结构、内容与代码示例
+- **ExerciseController** — 习题 CRUD、答题提交、错题记录
+- **CodeController** — 代码执行与提交（通过 Piston API 运行 C/C++/Python）
+- **VideoController** — 视频列表、详情、观看记录
+- **StatisticsController** — 学习统计与分析（进度、掌握度、趋势、薄弱点）
+- **GraphController** — 知识图谱可视化（Neo4j）
+
+前端（`frontend/`）基于 Vue 3 + Vite + Element Plus + Pinia，已包含：首页、知识图谱、学习目录、知识点详情、习题模块、统计页面、AI 对话、视频播放、代码操场等视图。
 
 ## 协作规范
 
@@ -88,9 +101,14 @@
 
 ## 文档索引
 
-项目需求和团队分工等文档位于 `docs/` 目录下，均为中文：
+项目文档位于 `docs/` 目录下，均为中文。核心文档：
 - `docs/要求.md` — 需求文档
 - `docs/分工.md` — 团队分工
 - `docs/项目架构.md` — 架构说明（含待确定 TODO 清单）
+- `docs/API接口规范.md` — API 接口规范
+- `docs/数据库交互契约.md` — 数据库交互约定
+- `docs/数据层协同规范.md` — 数据层协作规范
+- `docs/待补充能力清单.md` — 关键能力缺口
 - `docs/可参考项目.md` — 参考项目分析
-- `docs/待补充能力清单.md` — 现有架构从未涉及的关键能力缺口（与 TODO 清单并列）
+
+各模块说明文档：`习题模块说明.md`、`代码实现与在线运行模块.md`、`学习统计模块说明.md`、`知识图谱可视化.md`、`学习目录功能总结.md`、`视频讲解联调清单.md`、`前端框架使用指南.md` 等。
