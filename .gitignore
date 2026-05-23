@@ -53,3 +53,5 @@ src/python/AIchat/config/apikeys.local.json
 
 # Playwright MCP snapshots
 .playwright-mcp/
+
+/apache-maven-3.9.9

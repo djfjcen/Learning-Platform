@@ -58,14 +58,26 @@
               <h2>{{ selectedVideo.title }}</h2>
               <p>{{ selectedVideo.description || '暂无视频说明' }}</p>
             </div>
-            <el-tag :type="watchState.isCompleted ? 'success' : 'info'" effect="plain">
-              {{ watchState.isCompleted ? '已完成' : '学习中' }}
-            </el-tag>
+            <div class="player-actions">
+              <el-button
+                v-if="selectedVideo.neo4jId"
+                type="primary"
+                plain
+                size="small"
+                @click="openGraphNode"
+              >
+                查看图谱节点
+              </el-button>
+              <el-tag :type="watchState.isCompleted ? 'success' : 'info'" effect="plain">
+                {{ watchState.isCompleted ? '已完成' : '学习中' }}
+              </el-tag>
+            </div>
           </div>
 
           <video
+            v-if="isNativeVideo"
             ref="videoRef"
-            class="native-player"
+            class="video-player"
             :src="selectedVideo.videoUrl"
             :poster="selectedVideo.thumbnailUrl || undefined"
             controls
@@ -75,6 +87,22 @@
             @pause="flushProgress"
             @ended="handleEnded"
           />
+
+          <iframe
+            v-else-if="embedUrl"
+            class="video-player"
+            :src="embedUrl"
+            title="教学视频播放器"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+          />
+
+          <div v-else class="external-video">
+            <p>当前视频平台不支持站内嵌入播放。</p>
+            <el-button type="primary" tag="a" :href="selectedVideo.videoUrl" target="_blank" rel="noopener">
+              打开原视频
+            </el-button>
+          </div>
 
           <div class="progress-panel">
             <div class="progress-copy">
@@ -89,6 +117,16 @@
               <span>已观看 {{ formatDuration(watchState.watchDuration) }}</span>
               <span v-if="watchState.lastWatchTime">上次观看 {{ formatTime(watchState.lastWatchTime) }}</span>
             </div>
+            <el-button
+              v-if="!isNativeVideo"
+              class="complete-button"
+              type="success"
+              plain
+              :disabled="Boolean(watchState.isCompleted)"
+              @click="markEmbeddedCompleted"
+            >
+              {{ watchState.isCompleted ? '已标记完成' : '标记为已完成' }}
+            </el-button>
           </div>
         </template>
 
@@ -99,7 +137,8 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getVideoList, getWatchRecord, saveWatchProgress } from '@/api/modules/video.js'
@@ -110,10 +149,16 @@ const selectedVideo = ref(null)
 const videoRef = ref(null)
 const pendingResumeSeconds = ref(null)
 const lastReportAt = ref(0)
+const embeddedTimer = ref(null)
+const embeddedLastReportAt = ref(0)
+const router = useRouter()
 
 const filter = reactive({
   knowledgeId: undefined,
 })
+
+const embedUrl = computed(() => buildEmbedUrl(selectedVideo.value?.videoUrl))
+const isNativeVideo = computed(() => isDirectVideoUrl(selectedVideo.value?.videoUrl))
 
 const watchState = reactive({
   watchProgress: 0,
@@ -146,6 +191,7 @@ const fetchVideoList = async () => {
 }
 
 const selectVideo = async (video) => {
+  stopEmbeddedTracking()
   selectedVideo.value = video
   resetWatchState()
   pendingResumeSeconds.value = null
@@ -155,15 +201,30 @@ const selectVideo = async (video) => {
     applyWatchRecord(record)
     pendingResumeSeconds.value = watchState.watchDuration
     await nextTick()
-    handleLoadedMetadata()
+    if (isNativeVideo.value) {
+      handleLoadedMetadata()
+    } else {
+      startEmbeddedTracking()
+    }
   } catch (error) {
     console.error('Failed to load watch record', error)
+    if (!isNativeVideo.value) {
+      startEmbeddedTracking()
+    }
   }
 }
 
 const resetFilter = () => {
   filter.knowledgeId = undefined
   fetchVideoList()
+}
+
+const openGraphNode = () => {
+  if (!selectedVideo.value?.neo4jId) return
+  router.push({
+    name: 'Graph',
+    query: { node: selectedVideo.value.neo4jId },
+  })
 }
 
 const resetWatchState = () => {
@@ -212,8 +273,43 @@ const handleEnded = () => {
 }
 
 const flushProgress = () => {
+  if (!isNativeVideo.value) return
   syncLocalProgress()
   reportProgress(true)
+}
+
+const markEmbeddedCompleted = () => {
+  if (!selectedVideo.value) return
+  watchState.watchProgress = 100
+  watchState.watchDuration = selectedVideo.value.duration || watchState.watchDuration || 0
+  watchState.isCompleted = 1
+  reportProgress(true)
+}
+
+const startEmbeddedTracking = () => {
+  stopEmbeddedTracking()
+  embeddedLastReportAt.value = Date.now()
+  embeddedTimer.value = window.setInterval(() => {
+    if (!selectedVideo.value || isNativeVideo.value || watchState.isCompleted) return
+
+    watchState.watchDuration += 1
+    if (selectedVideo.value.duration) {
+      watchState.watchProgress = clampProgress(Math.floor((watchState.watchDuration / selectedVideo.value.duration) * 100))
+    }
+
+    const now = Date.now()
+    if (now - embeddedLastReportAt.value > 10000) {
+      embeddedLastReportAt.value = now
+      reportProgress(false)
+    }
+  }, 1000)
+}
+
+const stopEmbeddedTracking = () => {
+  if (embeddedTimer.value) {
+    window.clearInterval(embeddedTimer.value)
+    embeddedTimer.value = null
+  }
 }
 
 const syncLocalProgress = () => {
@@ -265,8 +361,34 @@ const formatTime = (time) => {
   return new Date(time).toLocaleString()
 }
 
+const isDirectVideoUrl = (url) => {
+  if (!url) return false
+  return /\.(mp4|webm|ogg)(\.download)?(\?.*)?$/i.test(url)
+}
+
+const buildEmbedUrl = (url) => {
+  if (!url) return ''
+  const bilibiliMatch = url.match(/bilibili\.com\/video\/(BV[0-9A-Za-z]+)/i)
+  if (bilibiliMatch) {
+    return `https://player.bilibili.com/player.html?bvid=${bilibiliMatch[1]}&page=1&high_quality=1&autoplay=0`
+  }
+
+  const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([0-9A-Za-z_-]+)/i)
+  if (youtubeMatch) {
+    return `https://www.youtube.com/embed/${youtubeMatch[1]}`
+  }
+
+  return ''
+}
+
 onMounted(fetchVideoList)
-onBeforeUnmount(flushProgress)
+onBeforeUnmount(() => {
+  flushProgress()
+  if (!isNativeVideo.value && selectedVideo.value) {
+    reportProgress(false)
+  }
+  stopEmbeddedTracking()
+})
 </script>
 
 <style scoped>
@@ -382,6 +504,13 @@ onBeforeUnmount(flushProgress)
   margin-bottom: 16px;
 }
 
+.player-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .player-header h2 {
   margin: 0 0 6px;
   font-size: 22px;
@@ -393,9 +522,21 @@ onBeforeUnmount(flushProgress)
   line-height: 1.6;
 }
 
-.native-player {
+.video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
+  background: #111827;
+  border: 0;
+  border-radius: 8px;
+}
+
+.external-video {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  color: #667085;
   background: #111827;
   border-radius: 8px;
 }
@@ -421,6 +562,10 @@ onBeforeUnmount(flushProgress)
 .watch-meta {
   margin-top: 8px;
   margin-bottom: 0;
+}
+
+.complete-button {
+  margin-top: 12px;
 }
 
 @media (max-width: 900px) {

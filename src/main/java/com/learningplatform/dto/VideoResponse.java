@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 public class VideoResponse {
     private Long id;
     private Long knowledgePointId;
+    private String knowledgePointName;
+    private String knowledgePointCode;
+    private String neo4jId;
     private String title;
     private String description;
     private String videoUrl;
