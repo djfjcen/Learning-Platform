@@ -34,7 +34,7 @@
             <span class="section-title">基本定义与核心性质</span>
           </div>
         </template>
-        <div v-if="definitionContent" class="content-text">{{ definitionContent }}</div>
+        <div v-if="definitionContent" class="content-text" v-html="mdToHtml(definitionContent)"></div>
         <el-empty v-else description="暂无定义内容" :image-size="60" />
       </el-card>
 
@@ -46,7 +46,7 @@
             <span class="section-title">核心考点</span>
           </div>
         </template>
-        <div class="content-text">{{ point.corePoints }}</div>
+        <div class="content-text" v-html="mdToHtml(point.corePoints)"></div>
       </el-card>
 
       <!-- ==================== 操作原理与步骤讲解 ==================== -->
@@ -60,7 +60,7 @@
         <div v-if="operationContents.length > 0" class="content-list">
           <div v-for="(item, i) in operationContents" :key="i" class="content-item">
             <h4 v-if="item.title" class="content-item-title">{{ item.title }}</h4>
-            <div class="content-text">{{ item.content }}</div>
+            <div class="content-text" v-html="mdToHtml(item.content)"></div>
           </div>
         </div>
         <el-empty v-else description="操作原理内容待补充" :image-size="60" />
@@ -177,7 +177,7 @@
         <div v-if="complexityContents.length > 0" class="content-list">
           <div v-for="(item, i) in complexityContents" :key="i" class="content-item">
             <h4 v-if="item.title" class="content-item-title">{{ item.title }}</h4>
-            <div class="content-text">{{ item.content }}</div>
+            <div class="content-text" v-html="mdToHtml(item.content)"></div>
           </div>
         </div>
         <el-empty v-else description="复杂度分析待补充" :image-size="60" />
@@ -208,6 +208,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { marked } from 'marked'
 import {
   getKnowledgeDetail,
   getKnowledgeContents,
@@ -216,6 +217,11 @@ import {
 import { runCode, submitCode } from '@/api/modules/code.js'
 import { useKnowledgeStore } from '@/stores/knowledge.js'
 import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
+
+function mdToHtml(text) {
+  if (!text) return ''
+  return marked.parse(text)
+}
 
 const route = useRoute()
 const knowledgeStore = useKnowledgeStore()
@@ -484,6 +490,59 @@ onMounted(() => {
   line-height: 1.85;
   color: #303133;
   white-space: pre-wrap;
+}
+
+:deep(.content-text table) {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+}
+
+:deep(.content-text th),
+:deep(.content-text td) {
+  border: 1px solid #dcdfe6;
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 14px;
+}
+
+:deep(.content-text th) {
+  background: #f5f7fa;
+  font-weight: 600;
+  color: #303133;
+}
+
+:deep(.content-text td) {
+  color: #606266;
+}
+
+:deep(.content-text ul),
+:deep(.content-text ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+:deep(.content-text li) {
+  margin-bottom: 4px;
+  line-height: 1.8;
+}
+
+:deep(.content-text code) {
+  background: #f0f2f5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  color: #d63384;
+}
+
+:deep(.content-text strong) {
+  font-weight: 600;
+  color: #303133;
+}
+
+:deep(.content-text p) {
+  margin: 8px 0;
 }
 
 .content-list {
