@@ -57,7 +57,12 @@
             <span class="section-title">操作原理与步骤讲解</span>
           </div>
         </template>
-        <div v-if="operationContent" class="content-text">{{ operationContent }}</div>
+        <div v-if="operationContents.length > 0" class="content-list">
+          <div v-for="(item, i) in operationContents" :key="i" class="content-item">
+            <h4 v-if="item.title" class="content-item-title">{{ item.title }}</h4>
+            <div class="content-text">{{ item.content }}</div>
+          </div>
+        </div>
         <el-empty v-else description="操作原理内容待补充" :image-size="60" />
       </el-card>
 
@@ -169,7 +174,12 @@
             <span class="section-title">时间复杂度与空间复杂度分析</span>
           </div>
         </template>
-        <div v-if="complexityContent" class="content-text">{{ complexityContent }}</div>
+        <div v-if="complexityContents.length > 0" class="content-list">
+          <div v-for="(item, i) in complexityContents" :key="i" class="content-item">
+            <h4 v-if="item.title" class="content-item-title">{{ item.title }}</h4>
+            <div class="content-text">{{ item.content }}</div>
+          </div>
+        </div>
         <el-empty v-else description="复杂度分析待补充" :image-size="60" />
       </el-card>
     </template>
@@ -320,13 +330,17 @@ function findContent(type) {
   return item?.content || ''
 }
 
+function findContents(type) {
+  return contents.value.filter(c => c.contentType === type).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+}
+
 const definitionContent = computed(() => {
   if (point.value?.description) return point.value.description
   return findContent('DEFINITION')
 })
 
-const operationContent = computed(() => findContent('OPERATION'))
-const complexityContent = computed(() => findContent('COMPLEXITY'))
+const operationContents = computed(() => findContents('OPERATION'))
+const complexityContents = computed(() => findContents('COMPLEXITY'))
 const codeExamples = computed(() => codes.value)
 
 // ================================================================
@@ -470,6 +484,29 @@ onMounted(() => {
   line-height: 1.85;
   color: #303133;
   white-space: pre-wrap;
+}
+
+.content-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.content-item {
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #e8e8e8;
+}
+
+.content-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.content-item-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #409eff;
 }
 
 .code-examples {
