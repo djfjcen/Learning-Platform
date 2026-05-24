@@ -97,14 +97,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Search, InfoFilled, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useLearningStore } from '@/stores/learning'
 import { getKnowledgeTree } from '@/api/modules/knowledge'
 
 const router = useRouter()
+const route = useRoute()
 const knowledgeStore = useKnowledgeStore()
 const learningStore = useLearningStore()
 
@@ -203,8 +204,25 @@ onMounted(async () => {
   try {
     const data = await getKnowledgeTree()
     treeData.value = data || []
+
+    // 处理来自知识图谱的跳转：根据 neo4j_id 直接定位到详情页
+    const highlightId = route.query.highlight
+    if (highlightId) {
+      // 等待树渲染完成后查找目标节点
+      await nextTick()
+      const target = neo4jIdIndex.value.get(highlightId)
+      if (target) {
+        treeRef.value?.setCurrentKey(target.id)
+        // 直接 replace 到详情页，不在浏览器历史中留中间步骤
+        router.replace({
+          name: 'KnowledgeDetail',
+          params: { module: target.module?.toLowerCase() || '', id: target.id },
+          query: {},
+        })
+      }
+    }
   } catch {
-    // 加载失败时保持空数组，树组件显示空状态
+    // 加载失败时保持空数组
   }
 })
 
