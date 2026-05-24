@@ -203,9 +203,11 @@ import {
   Promotion,
   View
 } from '@element-plus/icons-vue'
+import { useLearningStatsStore } from '@/stores/learningStats.js'
 
 const route = useRoute()
 const router = useRouter()
+const statsStore = useLearningStatsStore()
 
 const id = route.params.id
 const exerciseTitle = decodeURIComponent(route.query.title || '填空题')
@@ -368,6 +370,21 @@ const handleSubmit = async () => {
 
     result.value = response
     isSubmitted.value = true
+
+    let isCorrect = response?.correct === true || response?.correct === 'true'
+    if (blanks.value.length > 0 && exercise.value.answer) {
+      const correctAnswers = exercise.value.answer.split('|')
+      isCorrect = blanks.value.every((blank, index) =>
+        correctAnswers[index] && blank.answer.trim() === correctAnswers[index].trim()
+      )
+    }
+    statsStore.recordExerciseResult(
+      id,
+      exercise.value.knowledgePointId,
+      'FILL_BLANK',
+      isCorrect,
+      answer
+    )
 
     // 如果是填空形式，检查每个空的结果
     if (blanks.value.length > 0 && exercise.value.answer) {

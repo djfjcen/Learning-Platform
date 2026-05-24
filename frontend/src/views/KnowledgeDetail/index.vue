@@ -206,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   getKnowledgeDetail,
@@ -215,10 +215,15 @@ import {
 } from '@/api/modules/knowledge.js'
 import { runCode, submitCode } from '@/api/modules/code.js'
 import { useKnowledgeStore } from '@/stores/knowledge.js'
+import { useLearningStatsStore } from '@/stores/learningStats.js'
 import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
 
 const route = useRoute()
 const knowledgeStore = useKnowledgeStore()
+const statsStore = useLearningStatsStore()
+
+let studyTimer = null
+let studySeconds = 0
 
 const point = ref(null)
 const loading = ref(false)
@@ -361,6 +366,14 @@ async function fetchDetail() {
   const id = Number(route.params.id)
   if (!id) return
 
+  if (studyTimer) {
+    clearInterval(studyTimer)
+    if (studySeconds > 0) {
+      statsStore.addStudyTime(String(route.params.id), studySeconds)
+    }
+    studySeconds = 0
+  }
+
   loading.value = true
   point.value = null
   error.value = ''
@@ -396,6 +409,17 @@ async function fetchDetail() {
     difficulty: detail.difficulty,
   })
   knowledgeStore.setCurrentModule(route.params.module)
+
+  statsStore.recordKnowledgeVisit(id, moduleNameMap[route.params.module] || route.params.module || '')
+  studySeconds = 0
+  studyTimer = setInterval(() => {
+    studySeconds += 10
+    if (studySeconds > 0 && studySeconds % 30 === 0) {
+      statsStore.addStudyTime(id, 30)
+      studySeconds = 0
+    }
+  }, 10000)
+
   loading.value = false
 }
 
@@ -408,6 +432,17 @@ watch(
 
 onMounted(() => {
   fetchDetail()
+})
+
+onBeforeUnmount(() => {
+  if (studyTimer) {
+    clearInterval(studyTimer)
+    if (studySeconds > 0) {
+      statsStore.addStudyTime(String(route.params.id), studySeconds)
+    }
+    studyTimer = null
+    studySeconds = 0
+  }
 })
 </script>
 

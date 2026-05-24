@@ -200,9 +200,11 @@ import {
   Promotion,
   View
 } from '@element-plus/icons-vue'
+import { useLearningStatsStore } from '@/stores/learningStats.js'
 
 const route = useRoute()
 const router = useRouter()
+const statsStore = useLearningStatsStore()
 
 const id = route.params.id
 const type = route.query.type || 'single'
@@ -375,6 +377,15 @@ const handleSubmit = async () => {
 
     result.value = response
     isSubmitted.value = true
+
+    const isCorrect = response?.correct === true || response?.correct === 'true'
+    statsStore.recordExerciseResult(
+      id,
+      exercise.value.knowledgePointId,
+      type === 'single' ? 'SINGLE_CHOICE' : 'MULTIPLE_CHOICE',
+      isCorrect,
+      answer
+    )
 
     // 停止计时器
     if (timeLimit.value > 0) {

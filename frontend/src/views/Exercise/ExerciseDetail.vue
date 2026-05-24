@@ -126,9 +126,15 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
 import { runCode, submitCode } from '@/api/modules/code'
+import { getExerciseDetail } from '@/api/modules/exercise.js'
+import { useLearningStatsStore } from '@/stores/learningStats.js'
+
+const route = useRoute()
+const statsStore = useLearningStatsStore()
 
 const DEFAULT_TEMPLATES = {
   'c++': '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    int a, b;\n    cin >> a >> b;\n    cout << a + b << endl;\n    return 0;\n}',
@@ -149,7 +155,6 @@ const LOCAL_EXERCISE = {
   initialCode: DEFAULT_TEMPLATES
 }
 
-// 响应式数据
 const leftTab = ref('desc')
 const resultTab = ref('cases')
 const selectedLanguage = ref('c++')
@@ -158,11 +163,35 @@ const submitting = ref(false)
 const runResult = ref(null)
 const submitResult = ref(null)
 const activeCaseIndex = ref(0)
-const activeResultType = ref(null) // 'run' | 'submit'
+const activeResultType = ref(null)
 const code = ref(DEFAULT_TEMPLATES['c++'])
 const exercise = ref(LOCAL_EXERCISE)
 
-// 监听语言变化
+async function loadExercise() {
+  const id = route.params.id
+  if (!id) return
+  try {
+    const data = await getExerciseDetail(id)
+    if (data) {
+      exercise.value = {
+        ...LOCAL_EXERCISE,
+        id: data.id,
+        title: data.title,
+        difficulty: data.difficulty,
+        description: data.description,
+        knowledgePointId: data.knowledgePointId,
+        testCases: data.testCases || LOCAL_EXERCISE.testCases,
+      }
+    }
+  } catch (e) {
+    console.warn('加载习题详情失败，使用本地习题:', e)
+  }
+}
+
+onMounted(() => {
+  loadExercise()
+})
+
 watch(selectedLanguage, (lang) => {
   code.value = exercise.value.initialCode?.[lang] || DEFAULT_TEMPLATES[lang] || ''
   runResult.value = null
@@ -213,6 +242,16 @@ async function onSubmit() {
       testCases: exercise.value.testCases || []
     })
     submitResult.value = res
+
+    const isCorrect = res?.status === 'ACCEPTED'
+    const exerciseId = route.params.id || exercise.value.id
+    statsStore.recordExerciseResult(
+      exerciseId,
+      exercise.value.knowledgePointId,
+      'PROGRAMMING',
+      isCorrect,
+      code.value
+    )
   } catch (e) {
     submitResult.value = { status: 'RUNTIME_ERROR', errorMessage: '请求失败：' + e.message, passCount: 0, totalCount: 0, testResults: [] }
   } finally {
