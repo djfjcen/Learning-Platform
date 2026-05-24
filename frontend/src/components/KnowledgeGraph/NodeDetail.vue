@@ -3,7 +3,12 @@
     <div class="detail-header">
       <div class="header-top">
         <h3 class="node-name">{{ node.name }}</h3>
-        <el-button :icon="Close" circle size="small" @click="$emit('close')" />
+        <div class="header-actions">
+          <el-button type="primary" size="small" @click="goToLearning">
+            查看学习内容
+          </el-button>
+          <el-button :icon="Close" circle size="small" @click="$emit('close')" />
+        </div>
       </div>
       <div class="node-tags">
         <el-tag :type="diffType" size="small">{{ diffLabel }}</el-tag>
@@ -64,13 +69,60 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Close } from '@element-plus/icons-vue'
+import { getKnowledgeByCode } from '@/api/modules/knowledge.js'
 
 const props = defineProps({
   node: { type: Object, default: null },
+  allEdges: { type: Array, default: () => [] },
+  allNodes: { type: Array, default: () => [] },
 })
 
-defineEmits(['close', 'node-click'])
+const emit = defineEmits(['close', 'node-click'])
+
+const router = useRouter()
+
+const moduleRouteMap = {
+  SET: 'set', LINEAR_LIST: 'linear-list', TREE: 'tree',
+  GRAPH: 'graph', SEARCH: 'search', SORT: 'sort',
+}
+
+async function goToLearning() {
+  if (!props.node) return
+  // 按顺序尝试：当前节点 code → 父节点 code → 模块页降级
+  const codesToTry = [props.node.code]
+  // 收集父节点（PARENT_OF 关系中，当前节点是 target 时，source 是父节点）
+  const parentIds = props.allEdges
+    .filter((e) => e.type === 'PARENT_OF' && e.target === props.node.id)
+    .map((e) => e.source)
+  for (const parentId of parentIds) {
+    const parent = props.allNodes.find((n) => n.id === parentId)
+    if (parent?.code) codesToTry.push(parent.code)
+  }
+
+  const routeModule = moduleRouteMap[props.node.module] || props.node.module?.toLowerCase() || ''
+  for (const code of codesToTry) {
+    try {
+      const point = await getKnowledgeByCode(code)
+      if (point?.id) {
+        router.push({
+          name: 'KnowledgeDetail',
+          params: { module: routeModule, id: point.id },
+        })
+        return
+      }
+    } catch {
+      // 该 code 不存在，继续尝试下一个（父节点）
+    }
+  }
+  // 全部失败时降级为模块页跳转
+  router.push({
+    name: 'KnowledgeModule',
+    params: { module: routeModule },
+    query: { highlight: props.node.id },
+  })
+}
 
 const moduleLabels = {
   SET: '集合',
@@ -124,6 +176,13 @@ const corePointList = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .node-name {

@@ -49,6 +49,8 @@
         <div class="detail-panel" v-if="showDetail">
           <NodeDetail
             :node="nodeDetail"
+            :all-edges="allEdges"
+            :all-nodes="allNodes"
             @close="closeDetail"
             @node-click="handleNodeClick"
           />
