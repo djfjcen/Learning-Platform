@@ -45,6 +45,12 @@ public class KnowledgePointController {
         return Result.success(point);
     }
 
+    @GetMapping("/by-code/{code}")
+    public Result<KnowledgePoint> getByCode(@PathVariable String code) {
+        KnowledgePoint point = knowledgePointService.getByCode(code);
+        return Result.success(point);
+    }
+
     @PostMapping
     public Result<Void> save(@RequestBody KnowledgePoint point) {
         knowledgePointService.save(point);

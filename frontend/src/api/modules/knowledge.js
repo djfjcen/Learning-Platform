@@ -15,6 +15,11 @@ export function getKnowledgeDetail(id) {
   return http.get(`/knowledge/${id}`)
 }
 
+/** 根据 code 获取知识点详情（用于图谱跳转） */
+export function getKnowledgeByCode(code) {
+  return http.get(`/knowledge/by-code/${code}`)
+}
+
 /** 获取知识点的内容分段（操作原理、复杂度分析等） */
 export function getKnowledgeContents(knowledgeId) {
   return http.get(`/knowledge/${knowledgeId}/contents`)

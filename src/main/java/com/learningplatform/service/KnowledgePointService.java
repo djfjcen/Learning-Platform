@@ -14,6 +14,10 @@ import java.util.stream.Collectors;
 @Service
 public class KnowledgePointService extends ServiceImpl<KnowledgePointRepository, KnowledgePoint> {
 
+    public KnowledgePoint getByCode(String code) {
+        return lambdaQuery().eq(KnowledgePoint::getCode, code).one();
+    }
+
     public List<KnowledgePointTreeNode> getTree() {
         List<KnowledgePoint> all = list();
         if (all.isEmpty()) {
