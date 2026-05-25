@@ -11,13 +11,15 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: false,
     proxy: {
-      '/api/ai': {
-        target: 'http://localhost:9000',
+      // 必须先匹配 /api/ai，避免落到 Spring Boot 8088
+      '^/api/ai': {
+        target: 'http://127.0.0.1:9000',
         changeOrigin: true,
       },
-      '/api': {
-        target: 'http://localhost:8088',
+      '^/api': {
+        target: 'http://127.0.0.1:8088',
         changeOrigin: true,
       },
     },

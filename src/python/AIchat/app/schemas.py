@@ -36,3 +36,9 @@ class SessionHistoryResponse(BaseModel):
     user_id: int
     session_id: str
     messages: list[ChatMessage]
+
+
+class SessionSummary(BaseModel):
+    session_id: str
+    title: str
+    last_time: datetime

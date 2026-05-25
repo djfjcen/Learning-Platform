@@ -86,6 +86,10 @@ services:
         condition: service_healthy
     env_file:
       - docker/ai/.env
+    volumes:
+      - ./src/python/AIchat/config/apikeys.local.json:/app/config/apikeys.local.json:ro
+      # 挂载业务代码，避免镜像未重建时仍是旧版 app（如 chat_repository）
+      - ./src/python/AIchat/app:/app/app:ro
     networks:
       - app-network
     restart: unless-stopped

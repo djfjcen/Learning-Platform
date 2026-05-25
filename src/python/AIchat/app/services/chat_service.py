@@ -4,7 +4,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import AIAbility, ChatRole
 from app.repositories.chat_repository import ChatRepository
-from app.schemas import ChatMessage, ChatRequest, ChatResponse, SessionHistoryResponse
+from app.schemas import ChatMessage, ChatRequest, ChatResponse, SessionHistoryResponse, SessionSummary
 from app.services.ai_provider import AIProvider
 
 
@@ -47,6 +47,23 @@ class ChatService:
 
         messages = [self._row_to_model(row) for row in rows]
         return SessionHistoryResponse(user_id=user_id, session_id=session_id, messages=messages)
+
+    def list_user_sessions(self, user_id: int, limit: int = 50) -> list[SessionSummary]:
+        with get_db() as connection:
+            rows = self.repository.list_user_sessions(connection, user_id, limit)
+
+        sessions: list[SessionSummary] = []
+        for row in rows:
+            question = (row.get("first_question") or "").strip()
+            title = question[:30] + ("…" if len(question) > 30 else "") if question else "新对话"
+            sessions.append(
+                SessionSummary(
+                    session_id=row["session_id"],
+                    title=title,
+                    last_time=row["last_time"],
+                )
+            )
+        return sessions
 
     def chat_stream(self, request: ChatRequest):
         with get_db() as connection:

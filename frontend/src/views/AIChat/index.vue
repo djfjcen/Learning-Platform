@@ -3,15 +3,16 @@
     <aside class="history-panel">
       <div class="history-header">
         <span>历史对话</span>
-        <el-button type="primary" size="small" plain>新建</el-button>
+        <el-button type="primary" size="small" plain @click="createNewSession">新建</el-button>
       </div>
-      <div class="history-list">
+      <div class="history-list" v-loading="sessionsLoading">
+        <el-empty v-if="!sessionsLoading && sessions.length === 0" description="暂无历史对话" :image-size="64" />
         <div
           v-for="item in sessions"
-          :key="item.id"
+          :key="item.sessionId"
           class="history-item"
-          :class="{ active: item.id === activeSessionId }"
-          @click="switchSession(item.id)"
+          :class="{ active: item.sessionId === activeSessionId }"
+          @click="switchSession(item.sessionId)"
         >
           <div class="title">{{ item.title }}</div>
           <div class="time">{{ item.time }}</div>
@@ -20,7 +21,12 @@
     </aside>
 
     <section class="chat-panel">
-      <div class="message-list">
+      <div class="message-list" v-loading="messagesLoading">
+        <el-empty
+          v-if="!messagesLoading && currentMessages.length === 0"
+          description="开始提问，对话将自动保存"
+          :image-size="80"
+        />
         <div
           v-for="msg in currentMessages"
           :key="msg.id"
@@ -115,66 +121,30 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { DocumentCopy, EditPen, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
-import { analyzeCode, sendChatMessage } from '@/api/modules/ai.js'
+import { analyzeCode, getChatHistory, getSessionList, sendChatMessage } from '@/api/modules/ai.js'
 
-const activeSessionId = ref(1)
+const ACTIVE_SESSION_KEY = 'ai-chat-active-session'
+const currentUserId = 1
+const SKIP_UPLOAD_TIP_KEY = 'ai-chat-skip-upload-tip'
+
+const activeSessionId = ref('')
 const inputText = ref('')
 const selectedModel = ref('qwen3.6-plus')
 const fileInputRef = ref(null)
 const attachedFileName = ref('')
 const attachedFileContent = ref('')
 const isSending = ref(false)
+const sessionsLoading = ref(false)
+const messagesLoading = ref(false)
 const uploadTipDialogVisible = ref(false)
 const skipUploadTip = ref(false)
-const currentUserId = 1
-const currentSessionId = 'demo-session-1'
-const SKIP_UPLOAD_TIP_KEY = 'ai-chat-skip-upload-tip'
 
-const sessions = ref([
-  { id: 1, title: '栈和队列的区别', time: '今天 16:35' },
-  { id: 2, title: '快速排序复杂度分析', time: '今天 14:12' },
-  { id: 3, title: '红黑树旋转示例', time: '昨天 21:18' },
-])
-
-const sessionMessages = ref({
-  1: [
-    { id: 1, role: 'USER', content: '请解释一下链表和数组在插入上的性能差异。' },
-    {
-      id: 2,
-      role: 'ASSISTANT',
-      content:
-        '一般来说，数组在中间位置插入需要移动元素，时间复杂度为 O(n)；链表在已知插入位置前驱节点时可在 O(1) 完成插入，但查找位置仍可能是 O(n)。',
-    },
-    {
-      id: 7,
-      role: 'ASSISTANT',
-      content:
-        'Markdown 代码渲染测试：\n\n```cpp\n#include <iostream>\nint main() {\n  std::cout << "Hello Markdown";\n  return 0;\n}\n```\n\n行内代码示例：`O(log n)`',
-    },
-  ],
-  2: [
-    { id: 3, role: 'USER', content: '快速排序最坏情况为什么是 O(n^2)？' },
-    {
-      id: 4,
-      role: 'ASSISTANT',
-      content:
-        '当每次分区都极不平衡（例如每次都选到最大/最小值作为枢轴）时，会退化成 n + (n-1) + ... + 1 的比较次数，因此是 O(n^2)。',
-    },
-  ],
-  3: [
-    { id: 5, role: 'USER', content: '红黑树左旋和右旋的核心目的是什么？' },
-    {
-      id: 6,
-      role: 'ASSISTANT',
-      content:
-        '核心目的是在保持二叉搜索树中序有序性的前提下，局部调整树高与颜色冲突，恢复红黑树平衡性质。',
-    },
-  ],
-})
+const sessions = ref([])
+const sessionMessages = ref({})
 
 const modelOptions = [
   { label: 'Qwen 3.6 Plus', value: 'qwen3.6-plus' },
@@ -182,6 +152,113 @@ const modelOptions = [
 ]
 
 const currentMessages = computed(() => sessionMessages.value[activeSessionId.value] || [])
+
+const createSessionId = () => `session-${Date.now()}`
+
+const formatSessionTime = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return `今天 ${time}`
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) return `昨天 ${time}`
+  return date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const mapApiMessage = (msg, index) => ({
+  id: `${msg.create_time || Date.now()}-${index}`,
+  role: msg.role,
+  content: msg.content,
+})
+
+const upsertSessionMeta = (sessionId, patch = {}) => {
+  const index = sessions.value.findIndex((item) => item.sessionId === sessionId)
+  const next = {
+    sessionId,
+    title: patch.title || '新对话',
+    time: patch.time || '刚刚',
+    lastTime: patch.lastTime || new Date().toISOString(),
+  }
+  if (index >= 0) {
+    const merged = { ...sessions.value[index], ...next }
+    sessions.value.splice(index, 1)
+    sessions.value.unshift(merged)
+  } else {
+    sessions.value.unshift(next)
+  }
+}
+
+const loadSessionHistory = async (sessionId) => {
+  if (!sessionId) return
+  messagesLoading.value = true
+  try {
+    const data = await getChatHistory(sessionId, currentUserId, 100)
+    sessionMessages.value[sessionId] = (data?.messages || []).map(mapApiMessage)
+  } catch {
+    sessionMessages.value[sessionId] = []
+    ElMessage.error('加载对话历史失败')
+  } finally {
+    messagesLoading.value = false
+  }
+}
+
+const loadSessionList = async () => {
+  sessionsLoading.value = true
+  try {
+    const list = await getSessionList(currentUserId, 50)
+    sessions.value = (Array.isArray(list) ? list : []).map((item) => ({
+      sessionId: item.session_id,
+      title: item.title || '新对话',
+      time: formatSessionTime(item.last_time),
+      lastTime: item.last_time,
+    }))
+  } catch {
+    sessions.value = []
+    ElMessage.error('加载会话列表失败')
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+
+const persistActiveSession = (sessionId) => {
+  localStorage.setItem(ACTIVE_SESSION_KEY, sessionId)
+}
+
+const createNewSession = async () => {
+  const sessionId = createSessionId()
+  upsertSessionMeta(sessionId, { title: '新对话', time: '刚刚' })
+  sessionMessages.value[sessionId] = []
+  activeSessionId.value = sessionId
+  persistActiveSession(sessionId)
+  clearInput()
+}
+
+const switchSession = async (sessionId) => {
+  if (!sessionId || sessionId === activeSessionId.value) return
+  activeSessionId.value = sessionId
+  persistActiveSession(sessionId)
+  await loadSessionHistory(sessionId)
+}
+
+const initChatPage = async () => {
+  await loadSessionList()
+  const saved = localStorage.getItem(ACTIVE_SESSION_KEY)
+  const fallback = sessions.value[0]?.sessionId
+  const target = sessions.value.some((item) => item.sessionId === saved) ? saved : fallback
+
+  if (target) {
+    activeSessionId.value = target
+    persistActiveSession(target)
+    await loadSessionHistory(target)
+    return
+  }
+
+  await createNewSession()
+}
 
 const copyText = async (content) => {
   try {
@@ -294,11 +371,11 @@ const appendMessage = (role, content) => {
   })
 }
 
-const switchSession = (sessionId) => {
-  activeSessionId.value = sessionId
-}
-
 const sendMessage = async () => {
+  if (!activeSessionId.value) {
+    await createNewSession()
+  }
+  const sessionId = activeSessionId.value
   const question = inputText.value.trim()
   if (!question && !attachedFileContent.value) {
     ElMessage.warning('请输入问题或上传代码文件')
@@ -314,7 +391,7 @@ const sendMessage = async () => {
     if (attachedFileContent.value) {
       const result = await analyzeCode({
         user_id: currentUserId,
-        session_id: currentSessionId,
+        session_id: sessionId,
         question: question || `请分析这个代码文件：${attachedFileName.value}`,
         code: attachedFileContent.value,
         language: detectLanguageByFileName(attachedFileName.value),
@@ -325,13 +402,19 @@ const sendMessage = async () => {
     } else {
       const result = await sendChatMessage({
         user_id: currentUserId,
-        session_id: currentSessionId,
+        session_id: sessionId,
         question,
         model: selectedModel.value,
       })
       answer = result?.answer || '收到。'
     }
     appendMessage('ASSISTANT', answer)
+    const title = userMessage.length > 30 ? `${userMessage.slice(0, 30)}…` : userMessage
+    upsertSessionMeta(sessionId, {
+      title,
+      time: '刚刚',
+      lastTime: new Date().toISOString(),
+    })
     inputText.value = ''
   } catch {
     appendMessage('ASSISTANT', '请求失败，请稍后重试。')
@@ -341,6 +424,8 @@ const sendMessage = async () => {
 }
 
 const renderMarkdown = (content) => marked.parse(content ?? '')
+
+onMounted(initChatPage)
 </script>
 
 <style scoped>

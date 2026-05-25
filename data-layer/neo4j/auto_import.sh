@@ -22,32 +22,29 @@ done
 echo "Neo4j已就绪！"
 echo ""
 
-# 1. 执行Schema定义
 echo "步骤1: 创建索引和约束..."
 if [ -f "$SCRIPTS_DIR/schema.cql" ]; then
     cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" -a "$NEO4J_URI" < "$SCRIPTS_DIR/schema.cql"
-    echo "✓ Schema创建完成"
+    echo "Schema创建完成"
 else
-    echo "⚠ 未找到 schema.cql，跳过"
+    echo "未找到 schema.cql，跳过"
 fi
 echo ""
 
-# 2. 逐个执行所有 .cypher 文件（按文件名排序）
 echo "步骤2: 导入知识点数据..."
 CYPHER_FILES=$(ls "$IMPORT_DIR"/*.cypher 2>/dev/null | sort)
 if [ -z "$CYPHER_FILES" ]; then
-    echo "⚠ 未找到任何 .cypher 文件"
+    echo "未找到任何 .cypher 文件"
 else
     for f in $CYPHER_FILES; do
         filename=$(basename "$f")
         echo "  执行: $filename"
-        cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" -a "$NEO4J_URI" < "$f" || echo "  ⚠ $filename 执行出错（可能是重复导入，可忽略）"
+        cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" -a "$NEO4J_URI" < "$f" || echo "  $filename 执行出错（可能是重复导入，可忽略）"
     done
-    echo "✓ 知识点数据导入完成"
+    echo "知识点数据导入完成"
 fi
 echo ""
 
-# 3. 验证导入结果
 echo "========================================="
 echo "导入结果验证"
 echo "========================================="
@@ -61,6 +58,5 @@ RELATED_COUNT=$(cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" -a "$NEO4J_UR
 echo "关联关系数: $RELATED_COUNT"
 
 echo ""
-echo "========================================="
-echo "✓ 所有数据导入完成！"
+echo "所有数据导入完成！"
 echo "========================================="

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from app.models import AIAbility
-from app.schemas import ChatRequest, ChatResponse, SessionHistoryResponse
+from app.schemas import ChatRequest, ChatResponse, SessionHistoryResponse, SessionSummary
 from app.services.chat_service import ChatService
 
 router = APIRouter(prefix="/api/ai", tags=["AI Chat"])
@@ -28,6 +28,14 @@ def analyze_code(request: ChatRequest):
 @router.post("/code/generation", response_model=ChatResponse)
 def generate_code(request: ChatRequest):
     return chat_service.chat(request.model_copy(update={"ability": AIAbility.CODE_GENERATION}))
+
+
+@router.get("/sessions", response_model=list[SessionSummary])
+def list_user_sessions(
+    user_id: int = Query(..., ge=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    return chat_service.list_user_sessions(user_id=user_id, limit=limit)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionHistoryResponse)

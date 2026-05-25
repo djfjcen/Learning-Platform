@@ -15,6 +15,15 @@ echo "Neo4j已就绪！"
 echo ""
 
 EXISTING_COUNT=$(cypher-shell -u neo4j -p neo4j123 -a bolt://localhost:7687 "MATCH (kp:KnowledgePoint) RETURN count(kp);" 2>/dev/null | tail -1 || echo "0")
+SAMPLE_NAME=$(cypher-shell -u neo4j -p neo4j123 -a bolt://localhost:7687 \
+    "MATCH (n:KnowledgePoint {code:'GRAPH_REPRESENTATION'}) RETURN n.name LIMIT 1;" 2>/dev/null | tail -1 || echo "")
+
+# LANG=C 导入会导致中文变成 ????，需检测后重建
+if [ "$EXISTING_COUNT" != "0" ] && [ -n "$EXISTING_COUNT" ] && echo "$SAMPLE_NAME" | grep -q '?'; then
+    echo "检测到图谱中文乱码（样例: $SAMPLE_NAME），清空并重新导入..."
+    cypher-shell -u neo4j -p neo4j123 -a bolt://localhost:7687 "MATCH (n) DETACH DELETE n;" > /dev/null 2>&1
+    EXISTING_COUNT=0
+fi
 
 if [ "$EXISTING_COUNT" != "0" ] && [ -n "$EXISTING_COUNT" ]; then
     echo "检测到已有 $EXISTING_COUNT 个知识点节点，跳过自动导入"

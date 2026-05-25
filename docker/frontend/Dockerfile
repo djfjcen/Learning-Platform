@@ -3,6 +3,7 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ .
+# 生产构建读取 .env.production（VITE_API_BASE_URL=/api）
 RUN npm run build
 
 FROM nginx:alpine
